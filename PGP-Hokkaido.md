@@ -447,7 +447,7 @@ This command retrieved TGS tickets for accounts with associated SPNs. The result
 
 - `discovery@hokkaido-aerospace.com`
     
-- maintenance@hokkaido-aerospace.com
+- `maintenance@hokkaido-aerospace.com`
 
 Both accounts had their TGS tickets retrieved in hash format (`$krb5tgs$23$...`). These hashes can be cracked offline to recover the plaintext passwords, providing an avenue for privilege escalation without triggering alerts in real time.
 
