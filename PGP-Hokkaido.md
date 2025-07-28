@@ -324,7 +324,7 @@ SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\i
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Summer2023 STATUS_LOGON_FAILURE 
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Spring2023 STATUS_LOGON_FAILURE 
 SMB         192.168.192.40  445    DC               [-] hokkaido-aerospace.com\info:Fall2023 STATUS_LOGON_FAILURE 
-==SMB         192.168.192.40  445    DC               [+] hokkaido-aerospace.com\info:info
+SMB         192.168.192.40  445    DC               [+] hokkaido-aerospace.com\info:info
 ```
 The `users.txt` file contained valid domain usernames discovered during the Kerberos brute-force step. The password wordlist (`passowrds.txt`) was **manually crafted based on two key elements**:
 
